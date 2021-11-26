@@ -128,6 +128,52 @@ ukvmmap(pagetable_t kpagetable,uint64 va, uint64 pa, uint64 sz, int perm)
         panic("ukvmmap");
 }
 
+// refer to uvmcopy
+void
+ukvmcopy(pagetable_t kpagetable,pagetable_t upagetable,uint64 newsz,uint64 oldsz)
+{
+    uint64 va;
+    pte_t *upte;
+    pte_t *kpte;
+
+    if (newsz > PLIC) {
+        panic("ukvmcopy: newsz overflow PLIC");
+    }
+
+    for (va = oldsz; va< newsz; va+= PGSIZE) {
+        upte = walk(upagetable, va, 0);
+
+        if (upte ==0) {
+            printf("ukvmcopy: no upte");
+            panic("ukvmcopy: no upte");
+        }
+
+        if ( (*upte & PTE_V) ==0) {
+            printf("ukvmcopy:not a valid upte");
+            panic("ukvmcopy:not a valid upte");
+        }
+
+        kpte = walk(kpagetable,va,1);
+        if (kpte ==0) {
+            panic("ukvmcopy: no kpte");
+        }
+
+        *kpte = *upte;
+        *kpte &= ~(PTE_U);
+        printf("copy success\n");
+    }
+
+    for (va=newsz;va<oldsz;va+=PGSIZE) {
+        kpte = walk(kpagetable,va,0);
+        if (kpte==0) {
+            continue;
+        } else {
+            *kpte = 0;
+        }
+    }
+
+}
+
 // translate a kernel virtual address to
 // a physical address. only needed for
 // addresses on the stack.
@@ -386,23 +432,24 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  uint64 n, va0, pa0;
-
-  while(len > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > len)
-      n = len;
-    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
-
-    len -= n;
-    dst += n;
-    srcva = va0 + PGSIZE;
-  }
-  return 0;
+    return copyin_new(pagetable, dst, srcva, len);
+//  uint64 n, va0, pa0;
+//
+//  while(len > 0){
+//    va0 = PGROUNDDOWN(srcva);
+//    pa0 = walkaddr(pagetable, va0);
+//    if(pa0 == 0)
+//      return -1;
+//    n = PGSIZE - (srcva - va0);
+//    if(n > len)
+//      n = len;
+//    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+//
+//    len -= n;
+//    dst += n;
+//    srcva = va0 + PGSIZE;
+//  }
+//  return 0;
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -412,40 +459,41 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-  uint64 n, va0, pa0;
-  int got_null = 0;
-
-  while(got_null == 0 && max > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > max)
-      n = max;
-
-    char *p = (char *) (pa0 + (srcva - va0));
-    while(n > 0){
-      if(*p == '\0'){
-        *dst = '\0';
-        got_null = 1;
-        break;
-      } else {
-        *dst = *p;
-      }
-      --n;
-      --max;
-      p++;
-      dst++;
-    }
-
-    srcva = va0 + PGSIZE;
-  }
-  if(got_null){
-    return 0;
-  } else {
-    return -1;
-  }
+    return copyinstr_new(pagetable, dst, srcva, max);
+//  uint64 n, va0, pa0;
+//  int got_null = 0;
+//
+//  while(got_null == 0 && max > 0){
+//    va0 = PGROUNDDOWN(srcva);
+//    pa0 = walkaddr(pagetable, va0);
+//    if(pa0 == 0)
+//      return -1;
+//    n = PGSIZE - (srcva - va0);
+//    if(n > max)
+//      n = max;
+//
+//    char *p = (char *) (pa0 + (srcva - va0));
+//    while(n > 0){
+//      if(*p == '\0'){
+//        *dst = '\0';
+//        got_null = 1;
+//        break;
+//      } else {
+//        *dst = *p;
+//      }
+//      --n;
+//      --max;
+//      p++;
+//      dst++;
+//    }
+//
+//    srcva = va0 + PGSIZE;
+//  }
+//  if(got_null){
+//    return 0;
+//  } else {
+//    return -1;
+//  }
 }
 
 void print_pte(int i,uint64 pte,uint64 child,int level) {

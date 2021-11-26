@@ -174,6 +174,7 @@ uint64          uvmdealloc(pagetable_t, uint64, uint64);
 #else
 int             uvmcopy(pagetable_t, pagetable_t, uint64);
 #endif
+void            ukvmcopy(pagetable_t,pagetable_t,uint64,uint64);
 void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
@@ -182,6 +183,7 @@ int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 void            vmprint(pagetable_t);
+
 
 // plic.c
 void            plicinit(void);
@@ -205,6 +207,10 @@ void            statsinc(void);
 
 // sprintf.c
 int             snprintf(char*, int, char*, ...);
+
+// vmcopyin.c
+int             copyin_new(pagetable_t, char *, uint64, uint64);
+int             copyinstr_new(pagetable_t, char *, uint64, uint64);
 
 #ifdef LAB_NET
 // pci.c

@@ -240,7 +240,7 @@ proc_freekpagetable(pagetable_t level1)
         if (p & PTE_V) {
             uint64 level3 = PTE2PA(p);
             kfree((void*)level3);
-            //level2[i]=0;
+            level2[i]=0;
         }
     }
     kfree((void*)level2);
@@ -283,6 +283,9 @@ userinit(void)
 
   p->state = RUNNABLE;
 
+  ukvmcopy(p->kpagetable,p->pagetable,p->sz,0);
+
+    printf("first process create success");
   release(&p->lock);
 }
 
@@ -303,6 +306,9 @@ growproc(int n)
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
+
+  //
+  ukvmcopy(p->kpagetable,p->pagetable,p->sz,sz-n);
   return 0;
 }
 
@@ -327,6 +333,8 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  ukvmcopy(np->kpagetable, np->pagetable, np->sz, 0);
 
   np->parent = p;
 
