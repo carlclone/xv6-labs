@@ -160,7 +160,7 @@ ukvmcopy(pagetable_t kpagetable,pagetable_t upagetable,uint64 newsz,uint64 oldsz
 
         *kpte = *upte;
         *kpte &= ~(PTE_U);
-        printf("copy success\n");
+        //printf("copy success\n");
     }
 
     for (va=newsz;va<oldsz;va+=PGSIZE) {
