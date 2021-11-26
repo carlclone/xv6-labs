@@ -20,6 +20,7 @@ static void wakeup1(struct proc *chan);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
+extern pagetable_t kernel_pagetable;
 
 // initialize the proc table at boot time.
 void
@@ -121,6 +122,16 @@ found:
     return 0;
   }
 
+  p->kpagetable = proc_kpagetable();
+  if (p->kpagetable==0) {
+      printf("kpagetable == 0 when allocproc");
+      freeproc(p);
+      release(&p->lock);
+      return 0;
+  }
+
+
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -141,7 +152,13 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+  if (p->kpagetable) {
+      //printf("kpagetable freeing");
+      proc_freekpagetable(p->kpagetable);
+  }
+
   p->pagetable = 0;
+  p->kpagetable = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -185,6 +202,22 @@ proc_pagetable(struct proc *p)
   return pagetable;
 }
 
+pagetable_t
+proc_kpagetable()
+{
+    pagetable_t pagetable = uvmcreate();
+    int i;
+    for (i=1;i<512;i++) {
+        pagetable[i] = kernel_pagetable[i];
+    }
+
+    ukvmmap(pagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+    ukvmmap(pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    ukvmmap(pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+    ukvmmap(pagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+    return pagetable;
+}
+
 // Free a process's page table, and free the
 // physical memory it refers to.
 void
@@ -193,6 +226,26 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
+}
+
+void
+proc_freekpagetable(pagetable_t level1)
+{
+    pte_t pte = level1[0];
+
+    pagetable_t level2 = (pagetable_t) PTE2PA(pte);
+
+    for (int i=0;i<512;i++) {
+        pte_t p = level2[i];
+        if (p & PTE_V) {
+            uint64 level3 = PTE2PA(p);
+            kfree((void*)level3);
+            //level2[i]=0;
+        }
+    }
+    kfree((void*)level2);
+    kfree((void *) level1);
+
 }
 
 // a user program that calls exec("/init")
@@ -473,6 +526,10 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        w_satp(MAKE_SATP(p->kpagetable));
+        sfence_vma();
+
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
@@ -486,6 +543,10 @@ scheduler(void)
 #if !defined (LAB_FS)
     if(found == 0) {
       intr_on();
+
+    w_satp(MAKE_SATP(kernel_pagetable));
+    sfence_vma();
+
       asm volatile("wfi");
     }
 #else

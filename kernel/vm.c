@@ -121,6 +121,13 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
     panic("kvmmap");
 }
 
+void
+ukvmmap(pagetable_t kpagetable,uint64 va, uint64 pa, uint64 sz, int perm)
+{
+    if(mappages(kpagetable, va, sz, pa, perm) != 0)
+        panic("ukvmmap");
+}
+
 // translate a kernel virtual address to
 // a physical address. only needed for
 // addresses on the stack.
