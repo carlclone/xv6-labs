@@ -176,6 +176,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_testprint\
+	$U/_alarmtest
 
 
 
