@@ -5,7 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-
+#include "spinlock.h"
+#include "proc.h"
 /*
  * the kernel's page table.
  */
@@ -100,15 +101,23 @@ walkaddr(pagetable_t pagetable, uint64 va)
   if(va >= MAXVA)
     return 0;
 
+  // software walk , not mmu , so there is no pagefault happend , can not add in kerneltrap
+
   pte = walk(pagetable, va, 0);
-  if(pte == 0)
-    return 0;
-  if((*pte & PTE_V) == 0)
-    return 0;
-  if((*pte & PTE_U) == 0)
-    return 0;
-  pa = PTE2PA(*pte);
-  return pa;
+  if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
+      pa = pgfault_alloc();
+  } else {
+      pa = PTE2PA(*pte);
+
+  }
+    return pa;
+
+//    return 0;
+//  if((*pte & PTE_V) == 0)
+//    return 0;
+//  if((*pte & PTE_U) == 0)
+//    return 0;
+
 }
 
 // add a mapping to the kernel page table.
@@ -181,7 +190,8 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+//      panic("uvmunmap: walk");
+        continue;
     if((*pte & PTE_V) == 0)
 //      panic("uvmunmap: not mapped");
         continue;
@@ -317,9 +327,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+//      panic("uvmcopy: pte should exist");
+        continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+//      panic("uvmcopy: page not present");
+        continue;
+
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -441,4 +454,37 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+uint64 pgfault_alloc() {
+    uint64 va = r_stval();
+    struct proc* p = myproc();
+    uint64 ustack = p->trapframe->sp;
+    char* mem;
+
+    if (va < PGROUNDDOWN(ustack)) {
+        p->killed = 1;
+    } else if (va > p->sz) {
+        p->killed = 1;
+    } else {
+        va = PGROUNDDOWN(va);
+         mem = kalloc();
+        if (mem==0) {
+            p->killed = 1;
+        } else {
+            memset(mem,0,PGSIZE);
+            if (mappages(p->pagetable,va,PGSIZE,(uint64)mem,PTE_W|PTE_R|PTE_X|PTE_U) <0) {
+                p->killed = 1;
+                kfree(mem);
+            }
+            //kpagetable map needed ? oh right , there is no kpagetable in the lab !
+            //xxxxxxxxxx
+        }
+    }
+
+    if (p->killed==1) {
+        return 0;
+    } else {
+        return (uint64)mem;
+    }
 }
