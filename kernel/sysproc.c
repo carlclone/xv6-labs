@@ -41,21 +41,18 @@ sys_wait(void)
 uint64
 sys_sbrk(void)
 {
-  uint64 addr;
-  int n;
+    int addr;
+    int n;
+    struct proc *p = myproc();
 
-  if(argint(0, &n) < 0)
-    return -1;
-  struct proc* p = myproc();
-  addr = p->sz;
-    if(n > 0){
-        // lazy alloc
-        p->sz = addr+n;
-    } else if(n < 0){
-        p->sz = uvmdealloc(p->pagetable, addr, addr + n);
+    if(argint(0, &n) < 0)
+        return -1;
+    addr = p->sz;  // old sz
+    p->sz += n;
+    if (n < 0) {
+        uvmdealloc(p->pagetable, addr, p->sz);
     }
-
-  return addr;
+    return addr;
 }
 
 uint64

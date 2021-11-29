@@ -105,7 +105,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
 
   pte = walk(pagetable, va, 0);
   if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
-      pa = pgfault_alloc();
+      pa = pgfault_alloc(va);
   } else {
       pa = PTE2PA(*pte);
 
@@ -456,35 +456,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-uint64 pgfault_alloc() {
-    uint64 va = r_stval();
+uint64 pgfault_alloc(uint64 va) {
+//    uint64 va = r_stval();
     struct proc* p = myproc();
     uint64 ustack = p->trapframe->sp;
     char* mem;
 
-    if (va < PGROUNDDOWN(ustack)) {
-        p->killed = 1;
-    } else if (va > p->sz) {
-        p->killed = 1;
+    if (va < PGROUNDUP(ustack)) {
+        return 0;
+
+    } else if (va >= p->sz) {
+        return 0;
     } else {
+
         va = PGROUNDDOWN(va);
          mem = kalloc();
         if (mem==0) {
-            p->killed = 1;
+
+            return 0;
         } else {
             memset(mem,0,PGSIZE);
             if (mappages(p->pagetable,va,PGSIZE,(uint64)mem,PTE_W|PTE_R|PTE_X|PTE_U) <0) {
-                p->killed = 1;
                 kfree(mem);
+                return 0;
             }
+            return (uint64)mem;
             //kpagetable map needed ? oh right , there is no kpagetable in the lab !
             //xxxxxxxxxx
         }
     }
 
-    if (p->killed==1) {
-        return 0;
-    } else {
-        return (uint64)mem;
-    }
+
+
 }
