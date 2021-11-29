@@ -71,3 +71,103 @@ In the following code, what is going to be printed after 'y='? (note: the answer
 x=3 y=5218
 
 因为第二个参数没传, 内核直接取第二个寄存器的值, 第二个寄存器的值可能是之前遗留的任何值
+
+
+汇编全部加上注释 , 画出 stack
+https://chenlangping.github.io/2021/04/19/xv6-2020-lab4%E8%A7%A3%E6%9E%90/
+riscv  c 汇编 调用 解析   用到的寄存器 指令 可能在课程里有讲到，看视频，你跳过了
+https://mit-public-courses-cn-translatio.gitbook.io/mit6-s081/lec05-calling-conventions-and-stack-frames-risc-v/5.5-stack
+
+user/_call:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000000000000 <g>:
+#include "kernel/param.h"
+#include "kernel/types.h"
+#include "kernel/stat.h"
+#include "user/user.h"
+
+int g(int x) {
+   0:	1141                	addi	sp,sp,-16
+   2:	e422                	sd	s0,8(sp)
+   4:	0800                	addi	s0,sp,16
+  return x+3;
+}
+   6:	250d                	addiw	a0,a0,3
+   8:	6422                	ld	s0,8(sp)
+   a:	0141                	addi	sp,sp,16
+   c:	8082                	ret
+
+000000000000000e <f>:
+
+int f(int x) {
+   e:	1141                	addi	sp,sp,-16
+  10:	e422                	sd	s0,8(sp)
+  12:	0800                	addi	s0,sp,16
+  return g(x);
+}
+  14:	250d                	addiw	a0,a0,3
+  16:	6422                	ld	s0,8(sp)
+  18:	0141                	addi	sp,sp,16
+  1a:	8082                	ret
+
+000000000000001c <main>:
+
+void main(void) {
+  1c:	1141                	addi	sp,sp,-16
+  1e:	e406                	sd	ra,8(sp)
+  20:	e022                	sd	s0,0(sp)
+  22:	0800                	addi	s0,sp,16
+  printf("%d %d\n", f(8)+1, 13);
+  24:	4635                	li	a2,13
+  26:	45b1                	li	a1,12
+  28:	00000517          	auipc	a0,0x0
+  2c:	7b850513          	addi	a0,a0,1976 # 7e0 <malloc+0xea>
+  30:	00000097          	auipc	ra,0x0
+  34:	608080e7          	jalr	1544(ra) # 638 <printf>
+  exit(0);
+  38:	4501                	li	a0,0
+  3a:	00000097          	auipc	ra,0x0
+  3e:	276080e7          	jalr	630(ra) # 2b0 <exit>
+
+0000000000000042 <strcpy>:
+#include "kernel/fcntl.h"
+#include "user/user.h"
+
+
+Stack
+                   .
+                   .
+      +->          .
+      |   +-----------------+   |
+      |   | return address  |   |
+      |   |   previous fp ------+
+      |   | saved registers |
+      |   | local variables |
+      |   |       ...       | <-+
+      |   +-----------------+   |
+      |   | return address  |   |
+      +------ previous fp   |   |
+          | saved registers |   |
+          | local variables |   |
+      +-> |       ...       |   |
+      |   +-----------------+   |
+      |   | return address  |   |
+      |   |   previous fp ------+
+      |   | saved registers |
+      |   | local variables |
+      |   |       ...       | <-+
+      |   +-----------------+   |
+      |   | return address  |   |
+      +------ previous fp   |   |
+          | saved registers |   |
+          | local variables |   |
+  $fp --> |       ...       |   |
+          +-----------------+   |
+          | return address  |   |
+          |   previous fp ------+
+          | saved registers |
+  $sp --> | local variables |
+          +-----------------+
