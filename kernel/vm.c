@@ -461,11 +461,13 @@ uint64 pgfault_alloc(uint64 va) {
     struct proc* p = myproc();
     uint64 ustack = p->trapframe->sp;
     char* mem;
+    // for understand
+    int top_addr = p->sz - 1;
 
     if (va < PGROUNDUP(ustack)) {
         return 0;
 
-    } else if (va >= p->sz) {
+    } else if (va > top_addr) {
         return 0;
     } else {
 
