@@ -47,7 +47,7 @@ freerange(void *pa_start, void *pa_end)
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
-      kmem.refcnt[(uint64)p / PGSIZE]++;
+      kmem.refcnt[(uint64)p / PGSIZE] = 1;
       kfree(p);
   }
 
@@ -67,6 +67,7 @@ kfree(void *pa)
 
 
   r = (struct run*)pa;
+
 
   acquire(&kmem.lock);
   int paref = incr((uint64)pa,-1);

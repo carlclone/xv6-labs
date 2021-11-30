@@ -327,10 +327,11 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     //      memmove(mem, (char*)pa, PGSIZE);
     // -----------------------------
 
+    uint64 pte_w_cow_before = *pte & (PTE_W|PTE_COW);
     // we dont actual alloc , instead map to same pa , and incr refcnt
 
     // if page is writable , clear the PTE_W bit ( to trigger pg fault)
-    if ( (*pte & PTE_W) !=0 ) {
+    if (*pte & PTE_W) {
         *pte &= ~ PTE_W;
         *pte |= PTE_COW;
     }
@@ -338,6 +339,9 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     incr(pa,1);
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
 //      kfree(mem);
+        *pte &= ~(PTE_COW | PTE_W);
+        *pte |= pte_w_cow_before;
+
       goto err;
     }
   }
@@ -464,7 +468,7 @@ uint64 duppage(pagetable_t pagetable,uint64 va) {
     pte_t* pte;
 //    uint64 pa;
 
-    if (va >= MAXVA) {
+    if (va > MAXVA) {
         return -1;
     }
 
@@ -484,9 +488,9 @@ uint64 duppage(pagetable_t pagetable,uint64 va) {
     }
 
     // no need to duppage
-    if ((*pte & PTE_COW) ==0) {
-        return 0;
-    }
+//    if ((*pte & PTE_COW) ==0) {
+//        return 0;
+//    }
 
     uint64 oldpa = PTE2PA(*pte);
     uint64 newpa = (uint64)kalloc();
@@ -495,9 +499,11 @@ uint64 duppage(pagetable_t pagetable,uint64 va) {
     }
 
     memmove((void*)newpa,(void*)oldpa,PGSIZE);
+    uint64 flags = PTE_FLAGS(*pte);
+    flags = (flags & ~PTE_COW) | PTE_W;
+    *pte = PA2PTE(newpa) | flags;
 
-    *pte = PA2PTE(newpa) | PTE_U | PTE_V | PTE_W | PTE_X | PTE_R;
-
+    printf("duppage in");
     kfree((void*)oldpa);
     return 0;
 }
