@@ -2128,16 +2128,19 @@ kernmem(char *s)
   int pid;
 
   for(a = (char*)(KERNBASE); a < (char*) (KERNBASE+2000000); a += 50000){
+      printf("aaaaaaaaa");
     pid = fork();
     if(pid < 0){
       printf("%s: fork failed\n", s);
       exit(1);
     }
     if(pid == 0){
+        printf("bbbbbbbb");
       printf("%s: oops could read %x = %x\n", s, a, *a);
       exit(1);
     }
     int xstatus;
+      printf("waiting");
     wait(&xstatus);
     if(xstatus != -1)  // did kernel kill child?
       exit(1);
@@ -2547,15 +2550,19 @@ execout(char *s)
     } else if(pid == 0){
       // allocate all of memory.
       while(1){
+
         uint64 a = (uint64) sbrk(4096);
+    //    printf("%x\n",a);
         if(a == 0xffffffffffffffffLL)
           break;
         *(char*)(a + 4096 - 1) = 1;
       }
 
+        printf("c");
       // free a few pages, in order to let exec() make some
       // progress.
       for(int i = 0; i < avail; i++)
+          printf("b");
         sbrk(-4096);
       
       close(1);
@@ -2682,7 +2689,7 @@ main(int argc, char *argv[])
     void (*f)(char *);
     char *s;
   } tests[] = {
-    {execout, "execout"},
+//    {execout, "execout"},
     {copyin, "copyin"},
     {copyout, "copyout"},
     {copyinstr1, "copyinstr1"},

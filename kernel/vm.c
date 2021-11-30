@@ -334,10 +334,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if (*pte & PTE_W) {
         *pte &= ~ PTE_W;
         *pte |= PTE_COW;
+//        printf("ucmcopy:COW set");
     }
     flags = PTE_FLAGS(*pte);
     incr(pa,1);
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
+        printf("ucmopy:mappage error");
 //      kfree(mem);
         *pte &= ~(PTE_COW | PTE_W);
         *pte |= pte_w_cow_before;
@@ -377,6 +379,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     //va0 is user va , might be a cow page or others , trigger cowfault by hand here
     if (duppage(pagetable,va0)<0) {
+        printf("copyout : duppage error");
         return -1;
     }
     pa0 = walkaddr(pagetable, va0);
@@ -464,11 +467,13 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 
 // copy the va page data to a new pa ,
 // and point ppn(physical page num) to new pa
-uint64 duppage(pagetable_t pagetable,uint64 va) {
+int duppage(pagetable_t pagetable,uint64 va) {
     pte_t* pte;
 //    uint64 pa;
+    //va = PGROUNDDOWN(va);
 
-    if (va > MAXVA) {
+    if (va >=MAXVA) {
+        printf("duppage: >=MAXVA");
         return -1;
     }
 
@@ -476,21 +481,25 @@ uint64 duppage(pagetable_t pagetable,uint64 va) {
 
     //user operate on a invalid page , throw error
     if (pte==0) {
+        printf("duppage: pte=0");
         return -1;
     }
 
     if ((*pte & PTE_U) == 0) {
+        printf("duppage: PTE_U ==0");
         return -1;
     }
 
     if ((*pte & PTE_V) == 0) {
+        printf("duppage: PTE_V==0");
         return -1;
     }
 
     // no need to duppage
-//    if ((*pte & PTE_COW) ==0) {
-//        return 0;
-//    }
+    if ((*pte & PTE_COW) ==0) {
+//        printf("duppage: COW==0");
+        return -1;
+    }
 
     uint64 oldpa = PTE2PA(*pte);
     uint64 newpa = (uint64)kalloc();
@@ -503,7 +512,7 @@ uint64 duppage(pagetable_t pagetable,uint64 va) {
     flags = (flags & ~PTE_COW) | PTE_W;
     *pte = PA2PTE(newpa) | flags;
 
-    printf("duppage in");
+//    printf("duppage in");
     kfree((void*)oldpa);
     return 0;
 }

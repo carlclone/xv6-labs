@@ -21,7 +21,7 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-  char refcnt[PHYSTOP/PGSIZE];
+  int refcnt[PHYSTOP/PGSIZE];
 } kmem;
 
 // must be use with kmem.lock
@@ -29,6 +29,9 @@ int incr(uint64 pa,int step) {
     int pidx = pa / PGSIZE;
     if (pa > PHYSTOP || kmem.refcnt[pidx]+step < 0 ) {
         panic("kalloc:incr error");
+    }
+    if (kmem.refcnt[pidx] ==2) {
+//        printf("incr:two");
     }
     kmem.refcnt[pidx] += step;
     return kmem.refcnt[pidx];
