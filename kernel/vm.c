@@ -378,7 +378,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     //va0 is user va , might be a cow page or others , trigger cowfault by hand here
-    if (duppage(pagetable,va0)<0) {
+    if (duppage(pagetable,va0)==-1) {
         printf("copyout : duppage error");
         return -1;
     }
@@ -498,7 +498,7 @@ int duppage(pagetable_t pagetable,uint64 va) {
     // no need to duppage
     if ((*pte & PTE_COW) ==0) {
 //        printf("duppage: COW==0");
-        return -1;
+        return -2;
     }
 
     uint64 oldpa = PTE2PA(*pte);
