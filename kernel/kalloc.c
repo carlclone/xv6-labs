@@ -21,7 +21,18 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
+  char refcnt[PHYSTOP/PGSIZE];
 } kmem;
+
+// must be use with kmem.lock
+int incr(uint64 pa,int step) {
+    int pidx = pa / PGSIZE;
+    if (pa > PHYSTOP || kmem.refcnt[pidx]+step < 0 ) {
+        panic("kalloc:incr error");
+    }
+    kmem.refcnt[pidx] += step;
+    return kmem.refcnt[pidx];
+}
 
 void
 kinit()
@@ -35,8 +46,11 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
-    kfree(p);
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
+      kmem.refcnt[(uint64)p / PGSIZE]++;
+      kfree(p);
+  }
+
 }
 
 // Free the page of physical memory pointed at by v,
@@ -51,14 +65,26 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
+  int paref = incr((uint64)pa,-1);
+  release(&kmem.lock);
+
+  if (paref==0) {
+    memset(pa, 1, PGSIZE);
+  }
+
+  acquire(&kmem.lock);
+  if (paref==0) {
+      // Fill with junk to catch dangling refs.
+      // (DONE) TODO; this is time consume , reduce the lock granularity
+//      memset(pa, 1, PGSIZE);
+      r->next = kmem.freelist;
+      kmem.freelist = r;
+  }
+
   release(&kmem.lock);
 }
 
@@ -72,8 +98,13 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
+  if(r) {
+      kmem.freelist = r->next;
+      if (incr((uint64)r,1) !=1) {
+          panic("kalloc incr error");
+      }
+  }
+
   release(&kmem.lock);
 
   if(r)
