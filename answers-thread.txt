@@ -1,0 +1,3 @@
+Why are there missing keys with 2 threads, but not with 1 thread? Identify a sequence of events with 2 threads that can lead to a key being missing. Submit your sequence with a short explanation in answers-thread.txt
+
+两个线程并发写一个 key , 先后顺序不一定 , 可能是 1 可能是 0 , 如果是 0 就 missing
