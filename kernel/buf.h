@@ -7,6 +7,8 @@ struct buf {
   uint refcnt;
   struct buf *prev; // LRU cache list
   struct buf *next;
+  int ishead;
+  int istail;
   uchar data[BSIZE];
 };
 
