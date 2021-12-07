@@ -386,11 +386,11 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
   bn -= NDIRECT;
-
+//  printf("block %d\n",bn);
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
-    if((addr = ip->addrs[NDIRECT]) == 0)
-      ip->addrs[NDIRECT] = addr = balloc(ip->dev);
+    if((addr = ip->addrs[INDEX1_ENTRY]) == 0)
+      ip->addrs[INDEX1_ENTRY] = addr = balloc(ip->dev);
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
     if((addr = a[bn]) == 0){
@@ -401,7 +401,66 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
 
+  bn -= NINDIRECT;
+
+  if ( (addr = ip->addrs[INDEX2_ENTRY]) ==0 ) {
+      ip->addrs[INDEX2_ENTRY] = addr = balloc(ip->dev);
+  }
+  bp = bread(ip->dev,addr);
+  a = (uint*) bp->data;
+
+  int idx = bn / BENTRY_NUM;
+
+  if ( (addr = a[idx]) == 0 ) {
+      a[idx] = addr = balloc(ip->dev);
+      log_write(bp);
+  }
+  brelse(bp);
+
+    uint  *a2;
+    struct buf *bp2;
+    uint idx2;
+
+  idx2 = bn % BENTRY_NUM;
+  bp2 = bread(ip->dev,addr);
+  a2 = (uint*) bp2->data;
+  if ( (addr = a2[idx2]) ==0) {
+      a2[idx2] = addr = balloc(ip->dev);
+      log_write(bp2);
+  }
+  brelse(bp2);
+  return addr;
+
   panic("bmap: out of range");
+}
+
+void
+itunchelp(struct inode* ip,uint table_blk_addr, uint tlevel) {
+    if (table_blk_addr ==0 ) return;
+    uint *a;
+    struct buf *bp;
+    if (tlevel==1) {
+        if (table_blk_addr) {
+            bp = bread(ip->dev,table_blk_addr);
+            a = (uint*)bp->data;
+            for (int j=0;j<INDEX1_NUM;j++) {
+                if (a[j]) bfree(ip->dev,a[j]);
+            }
+            brelse(bp);
+        }
+    } else {
+        if (table_blk_addr) {
+            bp = bread(ip->dev,table_blk_addr);
+            a = (uint*)bp->data;
+            for (int i=0;i<INDEX1_NUM;i++) {
+                itunchelp(ip,a[i],tlevel-1);
+
+            }
+            brelse(bp);
+            bfree(ip->dev,table_blk_addr);
+        }
+    }
+
 }
 
 // Truncate inode (discard contents).
@@ -409,31 +468,27 @@ bmap(struct inode *ip, uint bn)
 void
 itrunc(struct inode *ip)
 {
-  int i, j;
-  struct buf *bp;
-  uint *a;
+    printf("call itrunc\n");
+    int i;
+//  struct buf *bp;
+//  uint *a;
 
-  for(i = 0; i < NDIRECT; i++){
-    if(ip->addrs[i]){
-      bfree(ip->dev, ip->addrs[i]);
-      ip->addrs[i] = 0;
+    for(i = 0; i < NDIRECT; i++){
+        if(ip->addrs[i]){
+            bfree(ip->dev, ip->addrs[i]);
+            ip->addrs[i] = 0;
+        }
     }
-  }
 
-  if(ip->addrs[NDIRECT]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
-    a = (uint*)bp->data;
-    for(j = 0; j < NINDIRECT; j++){
-      if(a[j])
-        bfree(ip->dev, a[j]);
-    }
-    brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
-    ip->addrs[NDIRECT] = 0;
-  }
 
-  ip->size = 0;
-  iupdate(ip);
+    itunchelp(ip,ip->addrs[INDEX1_ENTRY],1);
+    ip->addrs[INDEX1_ENTRY] = 0;
+
+    itunchelp(ip,ip->addrs[INDEX2_ENTRY],2);
+    ip->addrs[INDEX2_ENTRY] = 0;
+
+    ip->size = 0;
+    iupdate(ip);
 }
 
 // Copy stat information from inode.
