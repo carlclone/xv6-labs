@@ -468,7 +468,7 @@ itunchelp(struct inode* ip,uint table_blk_addr, uint tlevel) {
 void
 itrunc(struct inode *ip)
 {
-    printf("call itrunc\n");
+    //printf("call itrunc\n");
     int i;
 //  struct buf *bp;
 //  uint *a;
